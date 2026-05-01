@@ -126,9 +126,17 @@ def train_one_gnn(
     criterion = nn.CrossEntropyLoss(weight=weight_tensor)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="max", factor=0.5, patience=5, verbose=False
-    )
+    # Torch version compatibility:
+    # Some builds (especially in Colab / newer nightly mixes) do not accept
+    # the `verbose` argument for ReduceLROnPlateau.
+    try:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="max", factor=0.5, patience=5, verbose=False
+        )
+    except TypeError:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="max", factor=0.5, patience=5
+        )
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
