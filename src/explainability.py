@@ -40,6 +40,38 @@ def _save_fig(fig, path: str):
     logger.info(f"Saved figure -> {path}")
 
 
+def _normalize_shap_for_display(
+    shap_values,
+    n_classes_preference: int = 2,
+):
+    """
+    TreeExplainer output shape varies by model, class count, and SHAP version.
+    Return (shap_display, mean_abs_per_feature) with mean_abs strictly 1-D.
+    """
+    if isinstance(shap_values, list):
+        arrs = [np.asarray(sv, dtype=float) for sv in shap_values]
+        if not arrs:
+            raise ValueError("Empty shap_values list")
+        stack_abs = np.stack([np.abs(a) for a in arrs], axis=0)
+        mean_abs = stack_abs.mean(axis=(0, 1))
+        idx = min(n_classes_preference, len(arrs) - 1)
+        shap_display = arrs[idx]
+        return shap_display, np.ravel(mean_abs)
+
+    arr = np.asarray(shap_values, dtype=float)
+    if arr.ndim == 2:
+        mean_abs = np.abs(arr).mean(axis=0)
+        return arr, np.ravel(mean_abs)
+    if arr.ndim == 3:
+        # Typical: (n_samples, n_features, n_outputs)
+        mean_abs = np.abs(arr).mean(axis=(0, 2))
+        k = arr.shape[2]
+        cls_idx = min(n_classes_preference, k - 1)
+        return arr[:, :, cls_idx], np.ravel(mean_abs)
+
+    raise ValueError(f"Unexpected shap_values ndim={arr.ndim}")
+
+
 # ============================================================
 # SHAP EXPLAINABILITY
 # ============================================================
@@ -50,28 +82,32 @@ def _run_shap(model, X_train: pd.DataFrame, X_test: pd.DataFrame, model_name: st
     Returns a feature importance DataFrame or None on failure.
     """
     print(f"  Computing SHAP values for {model_name} ...")
+    feature_names = X_test.columns.tolist()
     try:
         # Select explainer type
         tree_models = ("XGBoost", "LightGBM", "CatBoost", "RandomForest", "DecisionTree")
         if model_name in tree_models:
             explainer = shap.TreeExplainer(model)
+            # Numpy avoids pandas/shape edge cases inside TreeExplainer for some stacks.
+            X_eval = np.ascontiguousarray(
+                X_test.apply(pd.to_numeric, errors="coerce").astype(np.float64).values
+            )
         else:
             explainer = shap.KernelExplainer(model.predict_proba, shap.sample(X_train, 100))
+            X_eval = X_test
 
-        shap_values = explainer.shap_values(X_test)
+        shap_values = explainer.shap_values(X_eval)
 
-        # For multiclass, shap_values is a list; aggregate across classes
-        if isinstance(shap_values, list):
-            # Mean absolute SHAP across classes
-            agg = np.mean([np.abs(sv) for sv in shap_values], axis=0)
-            shap_display = shap_values[2]  # Danger class for visualisation
-        else:
-            agg = np.abs(shap_values)
-            shap_display = shap_values
+        # For multiclass, shap_values is a list or (N, F, K) — normalize for tables/plots.
+        shap_display, mean_abs_shap = _normalize_shap_for_display(shap_values)
 
-        mean_abs_shap = agg.mean(axis=0)
+        if mean_abs_shap.shape[0] != len(feature_names):
+            raise ValueError(
+                f"SHAP feature count {mean_abs_shap.shape[0]} != columns {len(feature_names)}"
+            )
+
         importance_df = pd.DataFrame({
-            "feature": X_test.columns.tolist(),
+            "feature": feature_names,
             "mean_abs_shap": mean_abs_shap,
         }).sort_values("mean_abs_shap", ascending=False).reset_index(drop=True)
 
@@ -80,15 +116,30 @@ def _run_shap(model, X_train: pd.DataFrame, X_test: pd.DataFrame, model_name: st
             os.path.join(config.TABLES_DIR, "shap_feature_importance.csv"),
         )
 
+        plot_X = (
+            pd.DataFrame(X_eval, columns=feature_names)
+            if model_name in tree_models
+            else X_test
+        )
+
         # SHAP summary plot
         fig, ax = plt.subplots(figsize=(10, 8))
-        shap.summary_plot(shap_display, X_test, show=False, max_display=20)
+        shap.summary_plot(
+            shap_display, plot_X, feature_names=feature_names, show=False, max_display=20
+        )
         plt.tight_layout()
         _save_fig(plt.gcf(), os.path.join(config.SHAP_DIR, "shap_summary.png"))
 
         # SHAP bar plot
         fig2, ax2 = plt.subplots(figsize=(10, 6))
-        shap.summary_plot(shap_display, X_test, plot_type="bar", show=False, max_display=20)
+        shap.summary_plot(
+            shap_display,
+            plot_X,
+            feature_names=feature_names,
+            plot_type="bar",
+            show=False,
+            max_display=20,
+        )
         plt.tight_layout()
         _save_fig(plt.gcf(), os.path.join(config.SHAP_DIR, "shap_bar.png"))
 
@@ -97,7 +148,9 @@ def _run_shap(model, X_train: pd.DataFrame, X_test: pd.DataFrame, model_name: st
             if feat in X_test.columns:
                 try:
                     fig3, ax3 = plt.subplots(figsize=(7, 5))
-                    shap.dependence_plot(feat, shap_display, X_test, ax=ax3, show=False)
+                    shap.dependence_plot(
+                        feat, shap_display, plot_X, ax=ax3, show=False
+                    )
                     plt.tight_layout()
                     _save_fig(fig3, os.path.join(config.SHAP_DIR, f"dependence_{feat}.png"))
                 except Exception as dep_err:
