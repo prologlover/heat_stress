@@ -35,11 +35,8 @@ def create_directories():
         config.TABLES_DIR,
         config.MODELS_DIR,
         config.SHAP_DIR,
-        config.GNN_DIR,
-        config.CLASSIFICATION_REPORTS_DIR,
         config.CONFUSION_MATRICES_DIR,
-        config.GNN_CLASSIFICATION_REPORTS_DIR,
-        config.GNN_CONFUSION_MATRICES_DIR,
+        config.CLASSIFICATION_REPORTS_DIR,
     ]
     for d in dirs:
         os.makedirs(d, exist_ok=True)

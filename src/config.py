@@ -19,6 +19,8 @@ FIGURES_DIR = os.path.join(OUTPUTS_DIR, "figures")
 TABLES_DIR = os.path.join(OUTPUTS_DIR, "tables")
 MODELS_DIR = os.path.join(OUTPUTS_DIR, "models")
 SHAP_DIR = os.path.join(OUTPUTS_DIR, "shap")
+CLASSIFICATION_REPORTS_DIR = os.path.join(OUTPUTS_DIR, "classification_reports")
+CONFUSION_MATRICES_DIR = os.path.join(OUTPUTS_DIR, "confusion_matrices")
 
 
 # ============================================================
