@@ -1,8 +1,7 @@
 """
 Main pipeline for:
 "Explainable Hourly Heat-Stress Early Warning for Baghdad Using
-Machine Learning, Nighttime Heat Recovery Index, and
-Meteorological Variable Graph Neural Networks"
+Machine Learning and the Nighttime Heat Recovery Index"
 
 Run with:
     python main.py
@@ -33,7 +32,6 @@ from src.visualization import generate_eda_figures
 from src.modeling import train_all_models
 from src.evaluation import evaluate_all_models, find_best_model
 from src.explainability import run_shap_explainability
-from src.utils import get_available_columns
 
 logging.basicConfig(
     level=logging.INFO,
@@ -146,7 +144,6 @@ def main():
     print_section("HEAT-STRESS EARLY WARNING SYSTEM FOR BAGHDAD")
     print(f"  QUICK_TEST_MODE: {config.QUICK_TEST_MODE}")
     print(f"  RUN_CLASSICAL_MODELS: {config.RUN_CLASSICAL_MODELS}")
-    print(f"  RUN_GNN_MODELS: {config.RUN_GNN_MODELS}")
 
     # --------------------------------------------------------
     # STEP 1: Setup
@@ -219,86 +216,27 @@ def main():
     generate_early_warning_output(test_df, trained_models, feature_info)
 
     # --------------------------------------------------------
-    # STEP 11: GNN pipeline
+    # STEP 11: Ablation study (Classical ML with vs. without NHRI)
     # --------------------------------------------------------
-    gnn_results = pd.DataFrame()
-    trained_gnn = {}
-
-    if config.RUN_GNN_MODELS:
+    if config.RUN_CLASSICAL_MODELS:
         try:
-            import torch
-            from torch_geometric.data import Data  # noqa: F401
-            _gnn_available = True
-        except ImportError:
-            _gnn_available = False
-            logger.warning(
-                "PyTorch or PyTorch Geometric not installed. "
-                "GNN pipeline will be skipped.\n"
-                "Install with: pip install torch torch-geometric"
-            )
-
-        if _gnn_available:
-            from src.graph_builder import (
-                build_graph, save_graph_info,
-                create_gnn_datasets,
-            )
-            from src.gnn_training import train_all_gnn_models
-            from src.gnn_evaluation import evaluate_all_gnn_models, build_final_comparison_table
-            from src.gnn_explainability import run_gnn_explainability
-
-            # Determine available node variables
-            candidate_nodes = config.GNN_NODE_CANDIDATES
-            nodes = get_available_columns(full_df, candidate_nodes)
-            print(f"\n  GNN nodes ({len(nodes)}): {nodes}")
-
-            if len(nodes) < 2:
-                logger.warning("Fewer than 2 GNN nodes available; skipping GNN pipeline.")
-            else:
-                # Build graph using training data only (no leakage)
-                nodes, edges = build_graph(train_df, nodes, mode=config.GNN_GRAPH_MODE)
-                save_graph_info(nodes, edges)
-
-                # Dataset factory: returns (train_ds, val_ds, test_ds) for a given target
-                def dataset_factory(target_col):
-                    try:
-                        return create_gnn_datasets(
-                            train_df, val_df, test_df, nodes, edges, target_col
-                        )
-                    except Exception as e:
-                        logger.error(f"Dataset factory failed for {target_col}: {e}")
-                        return None, None, None, None, None
-
-                # Train GNN models
-                trained_gnn = train_all_gnn_models(dataset_factory, nodes, edges)
-
-                # Evaluate GNN models
-                gnn_results = evaluate_all_gnn_models(trained_gnn)
-
-                # GNN explainability
-                run_gnn_explainability(trained_gnn, nodes, edges)
-
-                # Ablation study
-                from src.ablation import run_ablation_study
-                run_ablation_study(train_df, val_df, test_df, nodes)
+            from src.ablation import run_ablation_study
+            run_ablation_study(train_df, val_df, test_df)
+        except Exception as e:
+            logger.warning(f"Ablation study skipped: {e}")
 
     # --------------------------------------------------------
-    # STEP 12: Build final comparison table
-    # --------------------------------------------------------
-    from src.gnn_evaluation import build_final_comparison_table
-    final_df = build_final_comparison_table(classical_results, gnn_results)
-
-    # --------------------------------------------------------
-    # STEP 13: Final summary
+    # STEP 12: Final summary
     # --------------------------------------------------------
     _print_final_summary(
         full_df, train_df, val_df, test_df,
-        classical_results, gnn_results, final_df,
+        classical_results,
     )
 
 
 def _print_final_summary(
     full_df, train_df, val_df, test_df,
-    classical_results, gnn_results, final_df,
+    classical_results,
 ):
     print_section("FINAL SUMMARY")
 
@@ -317,33 +255,12 @@ def _print_final_summary(
     # Best classical model
     if not classical_results.empty and "macro_f1" in classical_results.columns:
         best_cl = classical_results.loc[classical_results["macro_f1"].idxmax()]
-        print(f"\n  Best Classical Model: {best_cl['model']}")
+        print(f"\n  Best Model  : {best_cl['model']}")
         print(f"    Horizon      : {best_cl['target']}")
         print(f"    Macro F1     : {best_cl['macro_f1']:.4f}")
         print(f"    Balanced Acc : {best_cl['balanced_accuracy']:.4f}")
     else:
-        print("\n  No classical model results available.")
-
-    # Best GNN model
-    if not gnn_results.empty and "macro_f1" in gnn_results.columns:
-        best_gn = gnn_results.loc[gnn_results["macro_f1"].idxmax()]
-        print(f"\n  Best GNN Model: {best_gn['model']}")
-        print(f"    Horizon      : {best_gn['target']}")
-        print(f"    Macro F1     : {best_gn['macro_f1']:.4f}")
-        print(f"    Balanced Acc : {best_gn['balanced_accuracy']:.4f}")
-
-        # Does GNN improve over classical?
-        if not classical_results.empty:
-            best_cl_f1 = classical_results["macro_f1"].max()
-            best_gn_f1 = gnn_results["macro_f1"].max()
-            if best_gn_f1 > best_cl_f1:
-                print(f"\n  GNN IMPROVES over classical ML by "
-                      f"{best_gn_f1 - best_cl_f1:.4f} Macro F1 points.")
-            else:
-                print(f"\n  Classical ML outperforms GNN by "
-                      f"{best_cl_f1 - best_gn_f1:.4f} Macro F1 points.")
-    else:
-        print("\n  No GNN results available.")
+        print("\n  No model results available.")
 
     print(f"\n  Output locations:")
     print(f"    Tables  : {config.TABLES_DIR}")

@@ -19,15 +19,3 @@ shap>=0.41.0
 
 # Class imbalance (optional)
 imbalanced-learn>=0.10.0
-
-# Graph processing
-networkx>=2.8.0
-
-# Deep learning (required for GNN)
-# Install PyTorch first from https://pytorch.org/ according to your CUDA/CPU environment
-# Example (CPU only):
-#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-# Then install PyTorch Geometric:
-#   pip install torch-geometric
-torch>=2.0.0
-torch-geometric>=2.3.0

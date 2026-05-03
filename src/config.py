@@ -19,13 +19,7 @@ FIGURES_DIR = os.path.join(OUTPUTS_DIR, "figures")
 TABLES_DIR = os.path.join(OUTPUTS_DIR, "tables")
 MODELS_DIR = os.path.join(OUTPUTS_DIR, "models")
 SHAP_DIR = os.path.join(OUTPUTS_DIR, "shap")
-GNN_DIR = os.path.join(OUTPUTS_DIR, "gnn")
 
-# Sub-directories
-CLASSIFICATION_REPORTS_DIR = os.path.join(TABLES_DIR, "classification_reports")
-CONFUSION_MATRICES_DIR = os.path.join(FIGURES_DIR, "confusion_matrices")
-GNN_CLASSIFICATION_REPORTS_DIR = os.path.join(TABLES_DIR, "gnn_classification_reports")
-GNN_CONFUSION_MATRICES_DIR = os.path.join(FIGURES_DIR, "gnn_confusion_matrices")
 
 # ============================================================
 # RAW FILE PATHS
@@ -137,77 +131,17 @@ EXCLUDE_FROM_FEATURES = [
 ]
 
 # ============================================================
-# GNN SETTINGS
-# ============================================================
-RUN_GNN_MODELS = True
-
-GNN_GRAPH_MODE = "hybrid"  # Options: "correlation", "expert", "hybrid"
-
-GNN_MODELS = ["GCN", "GAT", "GraphSAGE"]
-
-GNN_HORIZONS = TARGET_COLUMNS  # All five horizons
-
-GNN_CORRELATION_THRESHOLD = 0.35
-
-GNN_HIDDEN_DIM = 64
-GNN_DROPOUT = 0.3
-GNN_LR = 0.001
-GNN_MAX_EPOCHS = 100
-GNN_PATIENCE = 10
-GNN_BATCH_SIZE = 64
-GNN_NUM_CLASSES = 4
-
-# Candidate node variables for the meteorological variable graph
-GNN_NODE_CANDIDATES = [
-    "tempC", "FeelsLikeC", "HeatIndexC", "DewPointC", "WindChillC",
-    "humidity", "pressureMB", "windspeedKmph", "WindGustKmph",
-    "cloudcover", "visibilityKm", "precipMM", "uvIndex",
-    "NHRI_35", "NHRI_40",
-    "hour_sin", "hour_cos", "month_sin", "month_cos",
-]
-
-# Expert-defined edges (meteorological domain knowledge)
-GNN_EXPERT_EDGES = [
-    ("tempC", "FeelsLikeC"),
-    ("tempC", "HeatIndexC"),
-    ("tempC", "DewPointC"),
-    ("tempC", "WindChillC"),
-    ("humidity", "HeatIndexC"),
-    ("humidity", "DewPointC"),
-    ("humidity", "FeelsLikeC"),
-    ("windspeedKmph", "WindChillC"),
-    ("windspeedKmph", "FeelsLikeC"),
-    ("WindGustKmph", "windspeedKmph"),
-    ("pressureMB", "cloudcover"),
-    ("cloudcover", "visibilityKm"),
-    ("precipMM", "humidity"),
-    ("precipMM", "cloudcover"),
-    ("uvIndex", "tempC"),
-    ("uvIndex", "HeatIndexC"),
-    ("NHRI_35", "FeelsLikeC"),
-    ("NHRI_40", "FeelsLikeC"),
-    ("NHRI_35", "HeatIndexC"),
-    ("NHRI_40", "HeatIndexC"),
-    ("hour_sin", "tempC"),
-    ("hour_cos", "tempC"),
-    ("month_sin", "tempC"),
-    ("month_cos", "tempC"),
-]
-
-# ============================================================
 # QUICK TEST MODE
 # ============================================================
 QUICK_TEST_MODE = False
 # When True:
-# - Train only RandomForest (classical) and GCN (GNN)
+# - Train only RandomForest
 # - Train only risk_t_plus_1
-# - Use fewer estimators and fewer epochs
+# - Use fewer estimators
 
 QUICK_CLASSICAL_MODELS = ["RandomForest"]
-QUICK_GNN_MODELS = ["GCN"]
 QUICK_HORIZONS = ["risk_t_plus_1"]
 QUICK_N_ESTIMATORS = 50
-QUICK_GNN_MAX_EPOCHS = 10
 
 # ============================================================
 # FIGURE SETTINGS
